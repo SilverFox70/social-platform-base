@@ -16,7 +16,7 @@ const connectCloudantDB = () => {
         } else {
           console.log(`Ping Result: ${JSON.stringify(pong, null, 2)}`);
           const db = cloudant.use(
-            `party-post`
+            `test-database`
           );
           resolve(db);
         }
