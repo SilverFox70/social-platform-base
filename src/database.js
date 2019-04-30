@@ -1,24 +1,74 @@
 const connectCloudantDB = require('./connectCloudantDB');
+const EventEmitter = require('events')
+const Logger = require('./Logger')
 const uuidv4 = require('uuid/v4');
 
-connectCloudantDB().then(db => {
-  let doc = {
-    _id: uuidv4(),
-    first_name: "Adam",
-    last_name: "Savage",
-    posts: []
+/**
+ * Class for connecting to and performing operations
+ * with a cloudant db instance
+ */
+class DatabaseConnector extends EventEmitter {
+
+  constructor (dbName) {
+    super()
+    this.dbName = dbName
   }
 
-  db.insert(doc)
-    .then(data => {
-        console.log("Created: ", data);
-      })
-    .catch(err => {
-      console.log(err);
-  });
-});
+  /**
+   * Convenience method for stringifying
+   * json objects.
+   * @param  {json} json JSON to be stringified
+   * @return {string}      JSON object as string
+   */
+  _jStr(json) {
+    return JSON.stringify(json, null, 2)
+  }
 
-// Read from Cloudant without query filter
+  _connect () {
+    return connectCloudantDB(this.dbName)
+  }
+
+  /**
+   * Insert document into database
+   * @param  {json} doc The document to be inserted
+   * @return {Promise}    Resolves with data or rejects with error.
+   * Also emits data on success and error on failure
+   */
+  saveDocument (doc) {
+    return new Promise((resolve, reject) => {
+      this._connect.then(db => {
+        db.insert(doc)
+          .then(data => {
+              Logger.info(`In db[${this.dbName}] created doc: ${this._jStr(data)} `);
+              this.emit('save-success', data)
+              resolve(data)
+            })
+          .catch(err => {
+            Logger.error(err);
+            this.emit('save-error', err)
+            reject(err)
+        })
+      })
+    })
+  }
+
+  getDocByID (id) {
+    this._connect.then(db => {
+      // Get the document by id
+    })
+  } 
+
+  // get lists of all docs
+  
+  // get all docs
+   
+  // update a doc
+  
+  // query db and return docs
+}
+
+// Read from Cloudant without query filter and then
+// update a record with new information
 connectCloudantDB().then(db => {
   db.list({ include_docs: true }).then(body => {
     body.rows.forEach((row, index) => {
