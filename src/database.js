@@ -58,9 +58,34 @@ class DatabaseConnector extends EventEmitter {
     })
   } 
 
-  // get lists of all docs
-  
-  // get all docs
+  /**
+   * Gets all of the documents stored in the database -
+   * paginates at 100 records per call; see Cloudant docs
+   * for more information.
+   * @return {Promise} Promise resolves returning an object
+   * containing an array of rows, one row for each document, 
+   * or rejects with an error message
+   */
+  getAllDocuments () {
+    return new Promise ((resolve, reject) => {
+      this._connect.then(db => {
+        db.list({ include_docs: true }).then(body => {
+          body.rows.forEach((row, index) => {
+            Logger.verbose(`Row ${index}:\n ${JSON.stringify(row, null, 2)}`);
+          })
+          this.emit('get-docs-success', body)
+          resolve(body)
+        })
+        .catch(err => {
+          Logger.error(err)
+          this.emit('get-docs-error')
+          reject(err)
+        })
+      })
+    })
+  }
+
+  // get only list of all docs
    
   // update a doc
   
