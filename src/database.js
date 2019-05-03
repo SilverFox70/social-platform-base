@@ -17,20 +17,6 @@ class DatabaseConnector extends EventEmitter {
   }
 
   /**
-   * Convenience method for stringifying
-   * json objects.
-   * @param  {json} json JSON to be stringified
-   * @return {string}      JSON object as string
-   */
-  _jStr(json) {
-    return JSON.stringify(json, null, 2)
-  }
-
-  // _connect () {
-  //   return connectCloudantDB(this.dbName)
-  // }
-
-  /**
    * Insert document into database
    * @param  {json} doc The document to be inserted
    * @return {Promise}    Resolves with data or rejects with error.
@@ -54,10 +40,6 @@ class DatabaseConnector extends EventEmitter {
     })
   }
 
-  /* ------------------------------------------
-      Example of how each function could look 
-      if not abstracted out to use wrapper
-     ------------------------------------------
   getDocByID (id) {
     return new Promise ((resolve, reject) => {
       this._connect.then(db => {
@@ -75,34 +57,37 @@ class DatabaseConnector extends EventEmitter {
       })
     })
   } 
-  */
- 
-  get (id) {
-    return this.connectWrapper(id, this.getDoc)
-  }
- 
-  getDoc (id, db, outer, resolve, reject) {
-    db.get(id).then(doc => {
-      Logger.info(`From db[${outer.dbName}] got doc: ${JSON.stringify(doc)} `, 'DatabaseConnector#getDoc');
-      outer.emit('get-success', doc)
-      resolve(doc)
-    })
-    .catch(err => {
-      Logger.error(err, 'DatabaseConnector#getDoc');
-      outer.emit('get-error', err)
-      reject(err)
-    })
-  }
 
-  connectWrapper (id, proc) {
+  /**
+   * Updates a document if that doc already has _id and _rev,
+   * it will reject to ensure that docs are not unintentionally
+   * created through this method.
+   * @param  {JSON} doc JSON object to be updated that includes _id and _rev
+   * @return {Promise}     Resolves with update data or rejects with error
+   */
+  updateDocument (doc) {
     return new Promise ((resolve, reject) => {
-      this._connect.then(db => proc(id, db, this, resolve, reject))
-      .catch(connectionError => {
-        Logger.error(connectionError, 'DatabaseConnector#generic')
+      // Check if this is potentially a doc from this db
+      if (!doc._id || !doc._rev) {
+        let noDocErr = new Error('Cannot update - yhis document does not exist yet. Please use "save"')
+        reject(noDocErr)
+      }
+      this._connect.then(db => {
+        db.insert(doc)
+          .then(data => {
+            Logger.info(`In db[${this.dbName}] updated doc: ${this._jStr(data)} `, 'DatabaseConnector#update');
+            this.emit('update-success', data)
+            resolve(data)
+          })
+          .catch(err => {
+            Logger.error(err, 'DatabaseConnector#update');
+            this.emit('update-error', err)
+            reject(err)
+        })
       })
     })
   }
-
+ 
   /**
    * Gets all of the documents stored in the database -
    * paginates at 100 records per call; see Cloudant docs
@@ -135,8 +120,25 @@ class DatabaseConnector extends EventEmitter {
   // update a doc
   
   // query db and return docs
+  
+  // ---------------------------------
+  // Private Functions below here
+  // ---------------------------------
+  
+  /**
+   * Convenience method for stringifying
+   * json objects.
+   * @param  {json} json JSON to be stringified
+   * @return {string}      JSON object as string
+   */
+  _jStr(json) {
+    return JSON.stringify(json, null, 2)
+  }
 }
 
+
+// TODO: Remove developement test code before connecting
+// to the front end.
 const dbCon = new DatabaseConnector('test-database')
 
 dbCon.get('26067263-118e-4a75-8dc0-155c93f4225a')
@@ -171,3 +173,58 @@ dbCon.get('26067263-118e-4a75-8dc0-155c93f4225a')
 //     });
 //   });
 // });
+
+// ----------------------------------------------------------------------------
+// Below here are some thought experiments/trials for abtracting out
+// portions of the funcionts used in the class
+// ----------------------------------------------------------------------------
+//   
+
+  // /**
+  //  * Gets a document by it id from the database
+  //  * @param  {string} id - The id of the document
+  //  * @return {JSON} - the document in JSON format
+  //  */
+  // get (id) {
+  //   return this.connectWrapper(id, this._getDoc)
+  // }
+ 
+  // /** 
+  //  * Class function for getting document from db
+  //  * that is passed into a connection wrapper.
+  //  * @param  {string} id      i id of the document to get
+  //  * @param  {Object} db      The database object
+  //  * @param  {context} outer   Context of this class instance
+  //  * @param  {Promise.resolve} resolve Promise.reolve function
+  //  * @param  {Promise.reject} reject  Promise.reject function
+  //  * @return {Promise}         Fullfills the outer promise passed
+  //  * in, resolving with the JSON of the document or rejecting
+  //  * with an error.
+  //  */
+  // _getDoc (id, db, outer, resolve, reject) {
+  //   db.get(id).then(doc => {
+  //     Logger.info(`From db[${outer.dbName}] got doc: ${JSON.stringify(doc)} `, 'DatabaseConnector#getDoc');
+  //     outer.emit('get-success', doc)
+  //     resolve(doc)
+  //   })
+  //   .catch(err => {
+  //     Logger.error(err, 'DatabaseConnector#getDoc');
+  //     outer.emit('get-error', err)
+  //     reject(err)
+  //   })
+  // }
+
+  // /**
+  //  * [connectWrapper description]
+  //  * @param  {[type]} id   [description]
+  //  * @param  {[type]} proc [description]
+  //  * @return {[type]}      [description]
+  //  */
+  // connectWrapper (id, proc) {
+  //   return new Promise ((resolve, reject) => {
+  //     this._connect.then(db => proc(id, db, this, resolve, reject))
+  //     .catch(connectionError => {
+  //       Logger.error(connectionError, 'DatabaseConnector#generic')
+  //     })
+  //   })
+  // }
